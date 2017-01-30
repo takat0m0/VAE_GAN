@@ -49,7 +49,9 @@ class Discriminator(object):
                     bn_conved = batch_norm(conved, i, is_training)
                     h = tf.nn.relu(bn_conved)
                     #h = lrelu(bn_conved)
-
+                    
+        feature_image = h
+        
         # full connect
         dim = get_dim(h)
         h = tf.reshape(h, [-1, dim])
@@ -65,7 +67,7 @@ class Discriminator(object):
             biases  = get_biases('fc2', [1], 0.0)
             h = tf.matmul(h, weights) + biases
             
-        return h
+        return h, feature_image
         #return tf.nn.sigmoid(h)
     
 if __name__ == u'__main__':

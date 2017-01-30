@@ -14,8 +14,8 @@ class Model(object):
     def __init__(self, z_dim, batch_size):
         self.z_dim = z_dim
         self.batch_size = batch_size
-        self.lr = 0.0002
-        
+        self.lr = 0.0001
+        self.gamma = 0.5
         # -- encoder -------
         self.enc = Encoder([3, 64, 128, 256], 2048, z_dim)
         
@@ -30,18 +30,17 @@ class Model(object):
         self.x = tf.placeholder(tf.float32, [self.batch_size, 64, 64, 3])
         
         # -- VAE ---------
-        self.mu, sigma = self.enc.set_model(self.x, is_training = True)
-        obj_kl = tf.reduce_sum(self.mu * self.mu/2.0 - tf.log(sigma) + sigma * sigma/2.0, 1)
-        
+        mu, log_sigma = self.enc.set_model(self.x, is_training = True)
+        obj_kl = tf.reduce_sum(mu * mu/2.0 - log_sigma + tf.exp(2.0 * log_sigma)/2.0 - 0.5, 1)
+        obj_kl = tf.reduce_mean(obj_kl, 0)
+                
         eps = tf.random_normal([self.batch_size, self.z_dim])
-        z = eps * sigma + self.mu
+        z = eps * tf.exp(log_sigma) + mu
 
         vae_gen_figs = self.dec.set_model(z, self.batch_size, is_training = True)
-        vae_logits = self.disc.set_model(vae_gen_figs, is_training = True)
-        
+        vae_logits, vae_feature_image = self.disc.set_model(vae_gen_figs, is_training = True)
         reconstruct_error = tf.reduce_mean(
             tf.reduce_sum(tf.pow(vae_gen_figs - self.x, 2), [1, 2, 3]))
-
 
         obj_dec_from_vae = tf.reduce_mean(
             tf.nn.sigmoid_cross_entropy_with_logits(
@@ -57,77 +56,78 @@ class Model(object):
         tf.get_variable_scope().reuse_variables()
 
         # -- draw from prior -------
-        z = tf.random_normal([self.batch_size, self.z_dim])
-        dec_figs = self.dec.set_model(z, self.batch_size, is_training = True)
-        dec_logits = self.disc.set_model(dec_figs, is_training = True)
-        
+        self.z_pr = tf.placeholder(dtype = tf.float32, shape = [self.batch_size, self.z_dim])
+        dec_figs = self.dec.set_model(self.z_pr, self.batch_size, is_training = True)
+        dec_logits, _ = self.disc.set_model(dec_figs, is_training = True)
+
         obj_dec_from_prior = tf.reduce_mean(
             tf.nn.sigmoid_cross_entropy_with_logits(
                 logits = dec_logits,
                 targets = tf.ones_like(dec_logits)))
-        
+
         obj_disc_from_prior = tf.reduce_mean(
             tf.nn.sigmoid_cross_entropy_with_logits(
                 logits = dec_logits,
                 targets = tf.zeros_like(dec_logits)))
 
         # -- obj from inputs --------
-        disc_logits = self.disc.set_model(self.x, is_training = True)
+        disc_logits, input_feature_image = self.disc.set_model(self.x, is_training = True)
         obj_disc_from_inputs = tf.reduce_mean(
             tf.nn.sigmoid_cross_entropy_with_logits(
                 logits = disc_logits,
                 targets = tf.ones_like(disc_logits)))
-        
-        dis_similar = tf.reduce_mean(pow(tf.nn.sigmoid(vae_logits) -
-                                         tf.nn.sigmoid(disc_logits), 2), 1)
-        
+        u'''
+        dis_similar = tf.reduce_mean(
+            tf.reduce_sum(pow(tf.nn.sigmoid(vae_logits) -
+                              tf.nn.sigmoid(disc_logits), 2), 1))
+        '''
+        dis_similar = tf.reduce_mean(
+            tf.reduce_sum(pow(vae_feature_image - input_feature_image, 2), [1, 2, 3]))
         # == setting obj ============
         # -- pretrain --------
         self.pre_obj_vae = reconstruct_error + obj_kl
         train_vars = self.enc.get_variables()
         train_vars.extend(self.dec.get_variables())
-        self.pretrain_vae  = tf.train.AdamOptimizer(self.lr, beta1 = 0.5).minimize(self.pre_obj_vae, var_list = train_vars)
+        self.pretrain_vae  = tf.train.AdamOptimizer(self.lr).minimize(self.pre_obj_vae, var_list = train_vars)
 
 
         self.pre_obj_dec = obj_dec_from_prior
         train_vars = self.dec.get_variables()
-        self.pretrain_dec  = tf.train.AdamOptimizer(self.lr, beta1 = 0.5).minimize(self.pre_obj_dec, var_list = train_vars)
+        self.pretrain_dec  = tf.train.AdamOptimizer(self.lr).minimize(self.pre_obj_dec, var_list = train_vars)
 
         
         self.pre_obj_disc = obj_disc_from_prior + obj_disc_from_inputs
         train_vars = self.disc.get_variables()
-        self.pretrain_disc  = tf.train.AdamOptimizer(self.lr, beta1 = 0.5).minimize(self.pre_obj_disc, var_list = train_vars)
+        self.pretrain_disc  = tf.train.AdamOptimizer(self.lr).minimize(self.pre_obj_disc, var_list = train_vars)
 
         # -- train -----
         self.obj_vae = dis_similar + obj_kl
         train_vars = self.enc.get_variables()
-        self.train_vae  = tf.train.AdamOptimizer(self.lr, beta1 = 0.5).minimize(self.obj_vae, var_list = train_vars)
+        self.train_vae  = tf.train.AdamOptimizer(self.lr).minimize(self.obj_vae, var_list = train_vars)
 
-        self.obj_dec = obj_dec_from_vae + obj_dec_from_prior + dis_similar
+        self.obj_dec = obj_dec_from_vae + obj_dec_from_prior + self.gamma * dis_similar
         train_vars = self.dec.get_variables()
-        self.train_dec = tf.train.AdamOptimizer(self.lr, beta1 = 0.5).minimize(self.obj_dec, var_list = train_vars)
+        self.train_dec = tf.train.AdamOptimizer(self.lr).minimize(self.obj_dec, var_list = train_vars)
 
         self.obj_disc = obj_disc_from_vae + obj_disc_from_prior + obj_disc_from_inputs
         train_vars = self.disc.get_variables()
-        self.train_disc  = tf.train.AdamOptimizer(self.lr, beta1 = 0.5).minimize(self.obj_disc, var_list = train_vars)
-        
-        # -- for figure generation -------
-        self.z_const = tf.placeholder(tf.float32, [self.batch_size, self.z_dim])
-        self.gen_figs = self.dec.set_model(self.z_const, self.batch_size, is_training = False)
-
+        self.train_disc  = tf.train.AdamOptimizer(self.lr).minimize(self.obj_disc, var_list = train_vars)
+        # -- for using ---------------------
+        self.mu, _  = self.enc.set_model(self.x, is_training = False)
+        self.dec_figs = self.dec.set_model(self.z_pr, self.batch_size, is_training = False)
     def pretraining_vae(self, sess, figs):
         _, pre_obj_vae = sess.run([self.pretrain_vae, self.pre_obj_vae],
                                   feed_dict = {self.x: figs})
         return pre_obj_vae
         
-    def pretraining_dec(self, sess, figs):
+    def pretraining_dec(self, sess, figs, z):
         _, pre_obj_dec = sess.run([self.pretrain_dec, self.pre_obj_dec],
-                                  feed_dict = {self.x: figs})
+                                  feed_dict = {self.x: figs, self.z_pr:z})
         return pre_obj_dec
     
-    def pretraining_disc(self, sess, figs):
+    def pretraining_disc(self, sess, figs, z):
         _, pre_obj_disc = sess.run([self.pretrain_disc, self.pre_obj_disc],
-                                  feed_dict = {self.x: figs})
+                                  feed_dict = {self.x: figs, self.z_pr:z})
         return pre_obj_disc
     
     def training_vae(self, sess, figs):
@@ -135,14 +135,16 @@ class Model(object):
                                   feed_dict = {self.x: figs})
         return obj_vae
         
-    def training_dec(self, sess, figs):
+    def training_dec(self, sess, figs, z):
         _, obj_dec = sess.run([self.train_dec, self.obj_dec],
-                                  feed_dict = {self.x: figs})
+                                  feed_dict = {self.x: figs,
+                                               self.z_pr:z})
         return obj_dec
     
-    def training_disc(self, sess, figs):
+    def training_disc(self, sess, figs, z):
         _, obj_disc = sess.run([self.train_disc, self.obj_disc],
-                                  feed_dict = {self.x: figs})
+                                  feed_dict = {self.x: figs,
+                                               self.z_pr:z})
         return obj_disc
     
     def encoding(self, sess, figs):
@@ -150,8 +152,8 @@ class Model(object):
         return ret
     
     def gen_fig(self, sess, z):
-        ret = sess.run(self.gen_figs,
-                       feed_dict = {self.z_const: z})
+        ret = sess.run(self.dec_figs,
+                       feed_dict = {self.z_pr: z})
         return ret
 
 if __name__ == u'__main__':

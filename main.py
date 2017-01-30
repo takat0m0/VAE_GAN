@@ -16,9 +16,10 @@ if __name__ == u'__main__':
 
     # parameter
     batch_size = 100
-    pre_epoch_num = 20
+    pre_epoch_num = 10
     epoch_num = 100
     z_dim = 100
+    repeat_dec_train = 8
     
     # make model
     print('-- make model --')
@@ -47,18 +48,21 @@ if __name__ == u'__main__':
                 
                 # get batch data
                 batch_figs = figs[step * batch_size: (step + 1) * batch_size]
+                batch_z = np.random.randn(batch_size, z_dim)
                 # train
+                obj_disc += model.pretraining_disc(sess, batch_figs, batch_z)
                 obj_vae += model.pretraining_vae(sess, batch_figs)
-                obj_dec += model.pretraining_dec(sess, batch_figs)
-                obj_disc += model.pretraining_disc(sess, batch_figs)
+                obj_dec += model.pretraining_dec(sess, batch_figs, batch_z)
                 
                 if step%10 == 0:
                     print('   step {}/{} end'.format(step, num_one_epoch));sys.stdout.flush()
+                    tmp_z = model.encoding(sess, batch_figs)
+                    tmp_figs = model.gen_fig(sess, tmp_z)
                     #tmp_figs = model.gen_fig(sess, batch_z)
-                    #dump_figs(np.asarray(tmp_figs), 'sample_result')
+                    dump_figs(np.asarray(tmp_figs), 'sample_result')
                     
-            print('epoch:{}, v_obj = {}, d_obj = {}, g_obj = {}'.format(epoch,
-                                                                        vae_obj/num_one_epoch,
+            print('epoch:{}, v_obj = {}, dec_obj = {}, disc_obj = {}'.format(epoch,
+                                                                        obj_vae/num_one_epoch,
                                                             obj_dec/num_one_epoch,
                                                             obj_disc/num_one_epoch))
             saver.save(sess, './model.dump')
@@ -71,18 +75,25 @@ if __name__ == u'__main__':
                 
                 # get batch data
                 batch_figs = figs[step * batch_size: (step + 1) * batch_size]
+                batch_z = np.random.randn(batch_size, z_dim)
                 # train
+                obj_disc += model.training_disc(sess, batch_figs, batch_z)
                 obj_vae += model.training_vae(sess, batch_figs)
-                obj_dec += model.training_dec(sess, batch_figs)
-                obj_disc += model.training_disc(sess, batch_figs)
+                for _ in range(repeat_dec_train - 1):
+                    model.training_dec(sess, batch_figs, batch_z)
+                obj_dec += model.training_dec(sess, batch_figs, batch_z)
+
                 
                 if step%10 == 0:
                     print('   step {}/{} end'.format(step, num_one_epoch));sys.stdout.flush()
+                    tmp_z = model.encoding(sess, batch_figs)
+                    tmp_figs = model.gen_fig(sess, tmp_z)
                     #tmp_figs = model.gen_fig(sess, batch_z)
-                    #dump_figs(np.asarray(tmp_figs), 'sample_result')
+                    dump_figs(np.asarray(tmp_figs), 'sample_result2')
+
                     
-            print('epoch:{}, v_obj = {}, d_obj = {}, g_obj = {}'.format(epoch,
-                                                                        vae_obj/num_one_epoch,
+            print('epoch:{}, v_obj = {}, dec_obj = {}, disc_obj = {}'.format(epoch,
+                                                                        obj_vae/num_one_epoch,
                                                             obj_dec/num_one_epoch,
                                                             obj_disc/num_one_epoch))
             saver.save(sess, './model.dump')

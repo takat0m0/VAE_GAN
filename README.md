@@ -1,2 +1,2 @@
 # VAE_GAN
-under construction....
+VAE + GAN with tensorflow

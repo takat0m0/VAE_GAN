@@ -38,8 +38,8 @@ class Decoder(object):
                              0.0)
             h = tf.matmul(z, w_r) + b_r
             h = batch_norm(h, 'reshape', is_training)
-            h = tf.nn.relu(h)
-            #h = lrelu(h)
+            #h = tf.nn.relu(h)
+            h = lrelu(h)
             
         h = tf.reshape(h, [-1, self.in_dim, self.in_dim, self.layer_chanels[0]])
 
@@ -55,8 +55,8 @@ class Decoder(object):
                     h = tf.nn.tanh(deconved)
                 else:
                     bn_deconved = batch_norm(deconved, i, is_training)
-                    h = tf.nn.relu(bn_deconved)
-                    #h = lrelu(bn_deconved)
+                    #h = tf.nn.relu(bn_deconved)
+                    h = lrelu(bn_deconved)
 
         return h
         

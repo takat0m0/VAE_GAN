@@ -66,9 +66,9 @@ class Encoder(object):
             
             weights = get_weights('sigma', [self.fc_dim, self.z_dim], 0.02)
             biases  = get_biases('sigma', [self.z_dim], 0.0)
-            sigma = tf.exp(tf.matmul(h, weights) + biases)
+            log_sigma = tf.matmul(h, weights) + biases
             
-        return mu, sigma
+        return mu, log_sigma
     
 if __name__ == u'__main__':
     g = Encoder([3, 64, 128, 256], 2048, 512)
