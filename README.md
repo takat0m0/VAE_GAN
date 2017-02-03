@@ -12,5 +12,5 @@ We here train with [Labeled Faces in the Wild](http://vis-www.cs.umass.edu/lfw/)
 
 ## morphing result
 
-![morphing](results/morphing.png)
+![morphing](results/morphing.jpg)
 
