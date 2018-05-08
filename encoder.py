@@ -1,4 +1,4 @@
-#! -*- coding:utf-8 -*-
+# -*- coding:utf-8 -*-
 
 import os
 import sys
@@ -25,7 +25,7 @@ class Encoder(object):
                 ret.append(var)
         return ret
     
-    def set_model(self, figs, is_training):
+    def set_model(self, figs, is_training, reuse = False):
 
         u'''
         return only logits. not sigmoid(logits).
@@ -34,7 +34,7 @@ class Encoder(object):
         h = figs
         
         # convolution
-        with tf.variable_scope(self.name_scope_conv):
+        with tf.variable_scope(self.name_scope_conv, reuse = reuse):
             for i, (in_chan, out_chan) in enumerate(zip(self.layer_chanels, self.layer_chanels[1:])):
 
                 conved = conv_layer(inputs = h,
@@ -53,7 +53,7 @@ class Encoder(object):
         dim = get_dim(h)
         h = tf.reshape(h, [-1, dim])
         
-        with tf.variable_scope(self.name_scope_fc):
+        with tf.variable_scope(self.name_scope_fc, reuse = reuse):
             weights = get_weights('fc', [dim, self.fc_dim], 0.02)
             biases  = get_biases('fc', [self.fc_dim], 0.0)
             h = tf.matmul(h, weights) + biases
@@ -73,4 +73,7 @@ class Encoder(object):
 if __name__ == u'__main__':
     g = Encoder([3, 64, 128, 256], 2048, 512)
     figs = tf.placeholder(tf.float32, [None, 64, 64, 3])
-    g.set_model(figs, True)
+    mu, log_sigma = g.set_model(figs, True)
+    print(mu, log_sigma)
+    mu, log_sigma = g.set_model(figs, True, True)
+    print(mu, log_sigma)

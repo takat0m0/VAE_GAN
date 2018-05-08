@@ -1,4 +1,4 @@
-#! -*- coding:utf-8 -*-
+# -*- coding:utf-8 -*-
 
 import os
 import sys
@@ -24,13 +24,13 @@ class Discriminator(object):
                 ret.append(var)
         return ret
     
-    def set_model(self, figs, is_training):
+    def set_model(self, figs, is_training, reuse = False):
         # return only logits
         
         h = figs
         
         # convolution
-        with tf.variable_scope(self.name_scope_conv):
+        with tf.variable_scope(self.name_scope_conv, reuse = reuse):
             for i, (in_chan, out_chan) in enumerate(zip(self.layer_chanels, self.layer_chanels[1:])):
                 if i == 0:
                     conved = conv_layer(inputs = h,
@@ -56,7 +56,7 @@ class Discriminator(object):
         dim = get_dim(h)
         h = tf.reshape(h, [-1, dim])
         
-        with tf.variable_scope(self.name_scope_fc):
+        with tf.variable_scope(self.name_scope_fc, reuse = reuse):
             weights = get_weights('fc', [dim, self.fc_dim], 0.02)
             biases  = get_biases('fc', [self.fc_dim], 0.0)
             h = tf.matmul(h, weights) + biases
@@ -73,4 +73,7 @@ class Discriminator(object):
 if __name__ == u'__main__':
     g = Discriminator([3, 32, 128, 256, 256], 512)
     figs = tf.placeholder(tf.float32, [None, 64, 64, 3])
-    g.set_model(figs, True)
+    h, f = g.set_model(figs, True)
+    print(h, f)
+    h, f = g.set_model(figs, True, True)
+    print(h, f)

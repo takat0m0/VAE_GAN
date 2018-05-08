@@ -1,4 +1,4 @@
-#! -*- coding:utf-8 -*-
+# -*- coding:utf-8 -*-
 
 import os
 import sys
@@ -11,11 +11,18 @@ from decoder import Decoder
 from discriminator import Discriminator
 
 class Model(object):
-    def __init__(self, z_dim, batch_size):
+    def __init__(self, z_dim, batch_size, fig_size, gray_scale = False):
         self.z_dim = z_dim
         self.batch_size = batch_size
+        
         self.lr = 0.0001
         self.gamma = 0.5
+
+        if gray_scale:
+            self.x = tf.placeholder(tf.float32, [self.batch_size, fig_size, fig_size, 1])
+        else:
+            self.x = tf.placeholder(tf.float32, [self.batch_size, fig_size, fig_size, 3])
+        
         # -- encoder -------
         self.enc = Encoder([3, 64, 128, 256], 2048, z_dim)
         
@@ -27,7 +34,7 @@ class Model(object):
         
         
     def set_model(self):
-        self.x = tf.placeholder(tf.float32, [self.batch_size, 64, 64, 3])
+
         
         # -- VAE ---------
         mu, log_sigma = self.enc.set_model(self.x, is_training = True)
@@ -45,37 +52,34 @@ class Model(object):
         obj_dec_from_vae = tf.reduce_mean(
             tf.nn.sigmoid_cross_entropy_with_logits(
                 logits = vae_logits,
-                targets = tf.ones_like(vae_logits)))
+                labels = tf.ones_like(vae_logits)))
         
         obj_disc_from_vae = tf.reduce_mean(
             tf.nn.sigmoid_cross_entropy_with_logits(
                 logits = vae_logits,
-                targets = tf.zeros_like(vae_logits)))
-
-        # -- for sharing variables ---
-        tf.get_variable_scope().reuse_variables()
+                labels = tf.zeros_like(vae_logits)))
 
         # -- draw from prior -------
         self.z_pr = tf.placeholder(dtype = tf.float32, shape = [self.batch_size, self.z_dim])
-        dec_figs = self.dec.set_model(self.z_pr, self.batch_size, is_training = True)
-        dec_logits, _ = self.disc.set_model(dec_figs, is_training = True)
+        dec_figs = self.dec.set_model(self.z_pr, self.batch_size, is_training = True, reuse = True)
+        dec_logits, _ = self.disc.set_model(dec_figs, is_training = True, reuse = True)
 
         obj_dec_from_prior = tf.reduce_mean(
             tf.nn.sigmoid_cross_entropy_with_logits(
                 logits = dec_logits,
-                targets = tf.ones_like(dec_logits)))
+                labels = tf.ones_like(dec_logits)))
 
         obj_disc_from_prior = tf.reduce_mean(
             tf.nn.sigmoid_cross_entropy_with_logits(
                 logits = dec_logits,
-                targets = tf.zeros_like(dec_logits)))
+                labels = tf.zeros_like(dec_logits)))
 
         # -- obj from inputs --------
-        disc_logits, input_feature_image = self.disc.set_model(self.x, is_training = True)
+        disc_logits, input_feature_image = self.disc.set_model(self.x, is_training = True, reuse = True)
         obj_disc_from_inputs = tf.reduce_mean(
             tf.nn.sigmoid_cross_entropy_with_logits(
                 logits = disc_logits,
-                targets = tf.ones_like(disc_logits)))
+                labels = tf.ones_like(disc_logits)))
         u'''
         dis_similar = tf.reduce_mean(
             tf.reduce_sum(pow(tf.nn.sigmoid(vae_logits) -
@@ -88,7 +92,9 @@ class Model(object):
         self.pre_obj_vae = reconstruct_error + obj_kl
         train_vars = self.enc.get_variables()
         train_vars.extend(self.dec.get_variables())
-        self.pretrain_vae  = tf.train.AdamOptimizer(self.lr).minimize(self.pre_obj_vae, var_list = train_vars)
+        self.pretrain_vae  = tf.train.AdamOptimizer(self.lr)\
+                                     .minimize(self.pre_obj_vae,
+                                               var_list = train_vars)
 
 
         self.pre_obj_dec = obj_dec_from_prior
@@ -112,9 +118,11 @@ class Model(object):
         self.obj_disc = obj_disc_from_vae + obj_disc_from_prior + obj_disc_from_inputs
         train_vars = self.disc.get_variables()
         self.train_disc  = tf.train.AdamOptimizer(self.lr).minimize(self.obj_disc, var_list = train_vars)
+        
         # -- for using ---------------------
-        self.mu, _  = self.enc.set_model(self.x, is_training = False)
-        self.dec_figs = self.dec.set_model(self.z_pr, self.batch_size, is_training = False)
+        self.mu, _  = self.enc.set_model(self.x, is_training = False, reuse = True)
+        self.dec_figs = self.dec.set_model(self.z_pr, self.batch_size, is_training = False, reuse = True)
+        
     def pretraining_vae(self, sess, figs):
         _, pre_obj_vae = sess.run([self.pretrain_vae, self.pre_obj_vae],
                                   feed_dict = {self.x: figs})
@@ -157,6 +165,6 @@ class Model(object):
         return ret
 
 if __name__ == u'__main__':
-    model = Model(z_dim = 100, batch_size = 100)
+    model = Model(z_dim = 100, batch_size = 100, fig_size = 64, gray_scale = False)
     model.set_model()
     

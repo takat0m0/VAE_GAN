@@ -1,4 +1,4 @@
-#! -*- coding:utf-8 -*-
+# -*- coding:utf-8 -*-
 
 import os
 import sys
@@ -22,19 +22,6 @@ def get_dim(target):
     for d in target.get_shape()[1:].as_list():
         dim *= d
     return dim
-
-def get_figs(dir_name):
-    ret = []
-    for file_name in os.listdir(dir_name):
-        #tmp = cv2.imread(os.path.join(dir_name, file_name), cv2.IMREAD_GRAYSCALE)
-        #tmp = np.reshape(tmp, (64, 64, 1))
-        tmp = cv2.imread(os.path.join(dir_name, file_name))
-        ret.append(tmp/127.5 - 1.0)
-    return np.asarray(ret, dtype = np.float32)
-
-def dump_figs(imgs, dir_name):
-    for i, img in enumerate(imgs):
-        cv2.imwrite(os.path.join(dir_name, '{}.jpg'.format(i)), (img + 1.0) * 127.5)
 
 def lrelu(x, leak=0.2, name="lrelu"):
   return tf.maximum(x, leak*x)

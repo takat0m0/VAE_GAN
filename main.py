@@ -1,4 +1,4 @@
-#! -*- coding:utf-8 -*-
+# -*- coding:utf-8 -*-
 
 import os
 import sys
@@ -7,7 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from Model import Model
-from util import get_figs, dump_figs
+from fig_util import get_figs, dump_figs
 
 if __name__ == u'__main__':
 
@@ -15,6 +15,8 @@ if __name__ == u'__main__':
     dir_name = u'figs'
 
     # parameter
+    fig_size = 64
+    gray_scale = False
     batch_size = 100
     pre_epoch_num = 10
     epoch_num = 100
@@ -23,12 +25,12 @@ if __name__ == u'__main__':
     
     # make model
     print('-- make model --')
-    model = Model(z_dim, batch_size)
+    model = Model(z_dim, batch_size, fig_size, gray_scale)
     model.set_model()
     
     # get_data
     print('-- get figs--')
-    figs = get_figs(dir_name)
+    figs = get_figs(dir_name, fig_size, gray_scale)
     print('num figs = {}'.format(len(figs)))
     
     # training

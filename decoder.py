@@ -1,4 +1,4 @@
-#! -*- coding:utf-8 -*-
+# -*- coding:utf-8 -*-
 
 import os
 import sys
@@ -26,10 +26,10 @@ class Decoder(object):
                 ret.append(var)
         return ret
     
-    def set_model(self, z, batch_size, is_training):
+    def set_model(self, z, batch_size, is_training, reuse = False):
 
         # reshape z
-        with tf.variable_scope(self.name_scope_reshape):
+        with tf.variable_scope(self.name_scope_reshape, reuse = reuse):
             w_r = get_weights('_r',
                               [self.z_dim, self.in_dim * self.in_dim * self.layer_chanels[0]],
                               0.02)
@@ -45,7 +45,7 @@ class Decoder(object):
 
         # deconvolution
         layer_num = len(self.layer_chanels) - 1
-        with tf.variable_scope(self.name_scope_deconv):
+        with tf.variable_scope(self.name_scope_deconv, reuse = reuse):
             for i, (in_chan, out_chan) in enumerate(zip(self.layer_chanels, self.layer_chanels[1:])):
                 deconved = deconv_layer(inputs = h,
                                         out_shape = [batch_size, self.in_dim * 2 ** (i + 1), self.in_dim * 2 **(i + 1), out_chan],
@@ -64,4 +64,7 @@ class Decoder(object):
 if __name__ == u'__main__':
     g = Decoder(512, [256, 128, 32, 3])
     z = tf.placeholder(tf.float32, [None, 512])
-    g.set_model(z, 100, True)
+    h = g.set_model(z, 100, True)
+    print(h)
+    h = g.set_model(z, 100, True, True)
+    print(h)
